@@ -80,20 +80,14 @@ class ListenerCallbackRegister:
     @register_listener(ListenerCallback.BOARD)
     def _board_listener(driver):
         try:
-            xpath = '//*[contains(@class, "player-name")]//a'
-            logged_player_style = driver.find_element_by_xpath(xpath).get_attribute('style')
-            if logged_player_style == 'color: rgb(0, 0, 0);':
-                logged_player_color = '#000000'
-            else:
-                logged_player_color = '#ffffff'
             board = np.zeros((8, 8), dtype=int).tolist()
             discs_root = driver.find_element_by_id('discs')
             discs = {}
             for disc_el in discs_root.find_elements_by_class_name('disc'):
-                player = '#ffffff' if 'disccolor_ffffff' in disc_el.get_attribute('class') else '#000000'
+                player = -1 if 'disccolor_ffffff' in disc_el.get_attribute('class') else 1
                 position = disc_el.get_attribute('id').split('_')[1]
                 position = int(position[1]) - 1, int(position[0]) - 1
-                board[position[0]][position[1]] = 1 if player == logged_player_color else -1
+                board[position[0]][position[1]] = player
             return board
         except NoSuchElementException:
             return None
@@ -124,7 +118,7 @@ class ListenerCallbackRegister:
         try:
             xpath = '//*[contains(@class, "player-name")]//a'
             logged_player_style = driver.find_element_by_xpath(xpath).get_attribute('style')
-            return '#000000' if logged_player_style == 'color: rgb(0, 0, 0);' else '#ffffff'
+            return 1 if logged_player_style == 'color: rgb(0, 0, 0);' else 0
         except NoSuchElementException:
             return None
 
