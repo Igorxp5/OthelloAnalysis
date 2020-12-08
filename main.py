@@ -4,7 +4,8 @@ from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import QTimer, Qt
 
-from widgets import BoardWidget, PlayerCardWidget
+from Widgets import BoardWidget, PlayerCardWidget
+
 from listener import OthelloListener, ListenerCallback
 
 
