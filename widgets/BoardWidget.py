@@ -19,11 +19,9 @@ class BoardWidget(QtWidgets.QWidget):
         board_image = self.get_board_image(self._board, self._size)
         
         self._image_label = QtWidgets.QLabel(self)
-        self._pix_widget = QtGui.QPixmap.fromImage(ImageQt(board_image))
-        self._image_label.setPixmap(self._pix_widget)
         self._layout.addWidget(self._image_label)
-
         self.setLayout(self._layout)
+        self.set_board(self._board)
     
     def set_board(self, board):
         self._board = board

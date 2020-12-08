@@ -19,11 +19,11 @@ class ListenerCallback(Enum):
     USER_LOGGED = auto()
     IN_ROOM = auto()
     IN_GAME = auto()
-    CURRENT_PLAYER = auto()
     PLAYERS = auto()
+    CURRENT_PLAYER = auto()
     PLAYER_COLOR = auto()
     BOARD = auto()
-    POINTS = auto()
+    PLAYERS_POINTS = auto()
     PLAYERS_TIME = auto()
     IS_FINISHED = auto()
 
@@ -92,7 +92,7 @@ class ListenerCallbackRegister:
         except NoSuchElementException:
             return None
     
-    @register_listener(ListenerCallback.POINTS)
+    @register_listener(ListenerCallback.PLAYERS_POINTS)
     def _points_listener(driver):
         try:
             players = driver.find_elements_by_xpath('//*[contains(@class, "player-name")]//a')
@@ -162,8 +162,10 @@ class OthelloListener(Thread):
         global _listeners_cache
 
         while not self._stop_event.is_set():
-            for type_, listener in _listeners.items():
+            for type_ in ListenerCallback:
                 if type_ in self._callbacks:
+                    listener = _listeners[type_]
+                    self._driver.implicitly_wait(0)
                     result = listener(self._driver)
                     callback_params = tuple([type_] + [result])
                     if result is not None and _listeners_cache.get(type_) != callback_params:
@@ -184,7 +186,7 @@ if __name__ == '__main__':
     listener.register_callback(ListenerCallback.IN_ROOM, callback)
     listener.register_callback(ListenerCallback.CURRENT_PLAYER, callback)
     listener.register_callback(ListenerCallback.BOARD, callback)
-    listener.register_callback(ListenerCallback.POINTS, callback)
+    listener.register_callback(ListenerCallback.PLAYERS_POINTS, callback)
     listener.register_callback(ListenerCallback.PLAYERS, callback)
     listener.register_callback(ListenerCallback.PLAYER_COLOR, callback)
     listener.register_callback(ListenerCallback.PLAYERS_TIME, callback)
