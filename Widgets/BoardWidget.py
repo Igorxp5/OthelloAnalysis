@@ -23,16 +23,18 @@ class BoardWidget(QtWidgets.QWidget):
         self.setLayout(self._layout)
         self.set_board(self._board)
     
-    def set_board(self, board):
+    def set_board(self, board, playable_squares=None):
         self._board = board
-        board_image = self.get_board_image(self._board, self._size)
+        board_image = self.get_board_image(self._board, self._size, 
+                                           playable_squares=playable_squares)
         self._pix_widget = QtGui.QPixmap.fromImage(ImageQt(board_image))
         self._image_label.setPixmap(self._pix_widget)
 
     @staticmethod
-    def get_board_image(board, size, background_color='#1bbf2e', 
-                        square_stroke=2, piece_stroke=2, stroke_color='#000000',
-                        piece_white_color='#ffffff', piece_black_color='#000000'):
+    def get_board_image(board, size, background_color='#4ac236', square_stroke=2, 
+                        piece_stroke=2, stroke_color='#000000', piece_white_color='#ffffff', 
+                        piece_black_color='#000000', playable_squares=None,
+                        playable_square_color='#6edb5c'):
         rows = len(board)
         cols = len(board[0])
         image = Image.new(mode='RGBA', size=(size, size))
@@ -48,7 +50,12 @@ class BoardWidget(QtWidgets.QWidget):
                 y1 = col * square_size
                 x2 = x1 + square_size
                 y2 = y1 + square_size
-                draw.rectangle((x1, y1, x2, y2), fill=background_color, 
+                
+                square_color = background_color
+                if playable_squares and (col, row) in playable_squares:
+                    square_color = playable_square_color
+
+                draw.rectangle((x1, y1, x2, y2), fill=square_color, 
                                width=square_stroke, outline=stroke_color)
                 
                 # Draw piece
@@ -75,5 +82,5 @@ if __name__ == '__main__':
     board[3][4] = 1
     board[4][3] = 1
     board[4][4] = -1
-    image = BoardWidget.get_board_image(board, 400)
+    image = BoardWidget.get_board_image(board, 400, playable_squares=[(0, 1)])
     image.show()
