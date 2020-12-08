@@ -11,11 +11,11 @@ from PyQt5.QtCore import Qt
 class BoardWidget(QtWidgets.QWidget):
     def __init__(self, board_size=8, size=400, *args, **kwargs):
         super(BoardWidget, self).__init__(*args, **kwargs)
-        
         self._layout = QtWidgets.QVBoxLayout()
         
         self._board = np.zeros((board_size, board_size), dtype=int).tolist()
         self._size = size
+        self._board_size = board_size
         board_image = self.get_board_image(self._board, self._size)
         
         self._image_label = QtWidgets.QLabel(self)
@@ -23,18 +23,45 @@ class BoardWidget(QtWidgets.QWidget):
         self.setLayout(self._layout)
         self.set_board(self._board)
     
-    def set_board(self, board, playable_squares=None):
+        self._image_label.setMouseTracking(True)
+        self._image_label.mouseMoveEvent = self._mouseMoveEvent
+        self._image_label.mouseReleaseEvent = self.leaveEvent
+
+        self._hover_square = None
+        self._hover_callback = None
+    
+    def get_size(self):
+        return self._size, self._size
+    
+    def get_board_size(self):
+        return self._board_size
+    
+    def set_board(self, board, highlight_squares=None):
         self._board = board
         board_image = self.get_board_image(self._board, self._size, 
-                                           playable_squares=playable_squares)
+                                           highlight_squares=highlight_squares)
         self._pix_widget = QtGui.QPixmap.fromImage(ImageQt(board_image))
         self._image_label.setPixmap(self._pix_widget)
+    
+    def register_square_hover_callback(self, callback):
+        self._hover_callback = callback
+
+    def _mouseMoveEvent(self, event):
+        col =  event.x() // (self._size // self._board_size)
+        row = event.y() // (self._size // self._board_size)
+        hover_square = row, col
+        if hover_square != self._hover_square:
+            self._hover_square = hover_square
+            self._hover_callback(self._hover_square)
+    
+    def leaveEvent(self, event):
+        self._hover_square = None
+        self._hover_callback(self._hover_square)
 
     @staticmethod
     def get_board_image(board, size, background_color='#4ac236', square_stroke=2, 
                         piece_stroke=2, stroke_color='#000000', piece_white_color='#ffffff', 
-                        piece_black_color='#000000', playable_squares=None,
-                        playable_square_color='#6edb5c'):
+                        piece_black_color='#000000', highlight_squares=None):
         rows = len(board)
         cols = len(board[0])
         image = Image.new(mode='RGBA', size=(size, size))
@@ -52,8 +79,8 @@ class BoardWidget(QtWidgets.QWidget):
                 y2 = y1 + square_size
                 
                 square_color = background_color
-                if playable_squares and (col, row) in playable_squares:
-                    square_color = playable_square_color
+                if highlight_squares and (col, row) in highlight_squares:
+                    square_color = highlight_squares[(col, row)]
 
                 draw.rectangle((x1, y1, x2, y2), fill=square_color, 
                                width=square_stroke, outline=stroke_color)
@@ -82,5 +109,5 @@ if __name__ == '__main__':
     board[3][4] = 1
     board[4][3] = 1
     board[4][4] = -1
-    image = BoardWidget.get_board_image(board, 400, playable_squares=[(0, 1)])
+    image = BoardWidget.get_board_image(board, 400, highlight_squares={(0, 1): '#6edb5c'})
     image.show()

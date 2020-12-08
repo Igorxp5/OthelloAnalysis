@@ -1,10 +1,12 @@
 import sys
+import collections
 
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import QTimer, Qt
 
-from Widgets import BoardWidget, PlayerCardWidget
+from Widgets import BoardWidget, PlayerCardWidget, \
+    FloatingDialogWidget, FloatingDialogAlignment
 
 from listener import OthelloListener, ListenerCallback
 
@@ -24,7 +26,7 @@ class Application(QApplication):
 
         self._player_name = None
         self._opponent_name = None
-
+        self._lotteries = {(3, 3): {-1: 0.5, 3: 0.3, 4: 0.2}}  # example
 
         self._window = QWidget()
         self._window.setWindowTitle(window_title)
@@ -32,6 +34,9 @@ class Application(QApplication):
         self._window.setFixedHeight(window_size[1])
 
         self._board_widget = BoardWidget(8)
+        self._board_widget.register_square_hover_callback(self._square_hover_callback)
+        self._floating_dialog_widget = FloatingDialogWidget(parent=self._board_widget)
+        self._floating_dialog_widget.hide()
 
         self._main_layout = QGridLayout(self._window)
         self._main_layout.addWidget(self._board_widget, 0, 0, alignment=Qt.AlignTop)
@@ -75,7 +80,7 @@ class Application(QApplication):
         self._parameters_layout.addStretch()
     
     def run(self):
-        self._listener.start()
+        # self._listener.start()
         self._window.show()
         sys.exit(self.exec_())
 
@@ -97,6 +102,38 @@ class Application(QApplication):
         if result:
             self._player_card_widget.set_points(result[self._player_name])
             self._opponent_card_widget.set_points(result[self._opponent_name])
+    
+    def _square_hover_callback(self, square):
+        if not (square and square in self._lotteries):
+            return self._floating_dialog_widget.hide()
+        
+        board_size = self._board_widget.get_board_size()
+        board_width, board_height = self._board_widget.get_size()
+        square_size = board_width // board_size
+        x = square[1] * square_size + square_size // 2
+        y = square[0] * square_size + square_size // 2
+        
+        ordered_lottery = collections.OrderedDict(sorted(self._lotteries[square].items()))
+        
+        lines = []
+        for pieces, probability in ordered_lottery.items():
+            pieces = str(pieces).rjust(2).ljust(5)
+            probability = (str(probability * 100) + '%').rjust(8)
+            lines.append(f'{pieces}-{probability}')
+        self._floating_dialog_widget.set_text('\n'.join(lines))
+        
+        if square[1] < board_size // 2 and square[0] < board_size // 2:
+            alignment = FloatingDialogAlignment.TOP_LEFT
+        elif square[1] > board_size // 2 and square[0] < board_size // 2:
+            alignment = FloatingDialogAlignment.TOP_RIGHT
+        elif square[1] > board_size // 2 and square[0] > board_size // 2:
+            alignment = FloatingDialogAlignment.BOTTOM_RIGHT
+        elif square[1] < board_size // 2 and square[0] > board_size // 2:
+            alignment = FloatingDialogAlignment.BOTTOM_LEFT
+
+        self._floating_dialog_widget.set_alignment(alignment)
+        self._floating_dialog_widget.move(x, y)
+        self._floating_dialog_widget.show()
 
 
 if __name__ == '__main__':
