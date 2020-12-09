@@ -26,13 +26,13 @@ class Application(QApplication):
         # Listeners
         self._listener = OthelloListener()
 
-        self._listener.register_callback(ListenerCallback.BOARD, self._board_callback)
-        self._listener.register_callback(ListenerCallback.IN_GAME, self._in_game_callback)
-        self._listener.register_callback(ListenerCallback.PLAYERS, self._players_callback)
-        self._listener.register_callback(ListenerCallback.PLAYERS_TIME, self._players_time_callback)
-        self._listener.register_callback(ListenerCallback.PLAYERS_POINTS, self._players_points_callback)
-        self._listener.register_callback(ListenerCallback.PLAYER_COLOR, self._player_color_callback)
-        self._listener.register_callback(ListenerCallback.CURRENT_PLAYER, self._current_player_callback)
+        self._listener.register_callback(ListenerCallback.BOARD, self._listener_callback)
+        self._listener.register_callback(ListenerCallback.IN_GAME, self._listener_callback)
+        self._listener.register_callback(ListenerCallback.PLAYERS, self._listener_callback)
+        self._listener.register_callback(ListenerCallback.PLAYERS_TIME, self._listener_callback)
+        self._listener.register_callback(ListenerCallback.PLAYERS_POINTS, self._listener_callback)
+        self._listener.register_callback(ListenerCallback.PLAYER_COLOR, self._listener_callback)
+        self._listener.register_callback(ListenerCallback.CURRENT_PLAYER, self._listener_callback)
 
         self._player_name = None
         self._opponent_name = None
@@ -40,6 +40,8 @@ class Application(QApplication):
 
         self._current_player = None
         self._player_color = None
+        self._players_time = dict()
+        self._players_points = dict()
         self._board = None
         self._depth_level = 0
 
@@ -49,7 +51,7 @@ class Application(QApplication):
         self._window.setFixedHeight(self.WINDOW_SIZE[1])
 
         self._board_widget = BoardWidget(8)
-        self._board_widget.register_square_hover_callback(self._square_hover_callback)
+        self._board_widget.register_square_hover_callback(self._square_hover)
         self._floating_dialog_widget = FloatingDialogWidget(parent=self._board_widget)
         self._floating_dialog_widget.hide()
 
@@ -121,10 +123,51 @@ class Application(QApplication):
 
         self._current_player = None
         self._player_color = None
+        self._players_time = dict()
+        self._players_points = dict()
         self._board = None
         self._depth_level = 0
 
         # TODO: Show waiting window
+    
+    def _listener_callback(self, event, result):
+        if event is ListenerCallback.BOARD:
+            self._board_callback(event, result)
+        elif event is ListenerCallback.PLAYERS:
+            self._players_callback(event, result)
+        elif event is ListenerCallback.PLAYERS_TIME:
+            self._players_time_callback(event, result)
+        elif event is ListenerCallback.PLAYERS_POINTS:
+            self._players_points_callback(event, result)
+        elif event is ListenerCallback.CURRENT_PLAYER:
+            self._current_player_callback(event, result)
+        elif event is ListenerCallback.PLAYER_COLOR:
+            self._player_color_callback(event, result)
+        
+        if self._player_name:
+            self._player_card_widget.set_player_name(self._player_name)
+            self._opponent_card_widget.set_player_name(self._opponent_name)
+
+            if self._players_time:
+                self._player_card_widget.set_time(self._players_time[self._player_name])
+                self._opponent_card_widget.set_time(self._players_time[self._opponent_name])
+            
+            if self._players_points:
+                self._player_card_widget.set_points(self._players_points[self._player_name])
+                self._opponent_card_widget.set_points(self._players_points[self._opponent_name])
+            
+            if self._board is not None:
+                highlight_squares = dict()
+                if self._current_player == self._player_name and self._player_color:
+                    self._update_lotteries()
+                    state = OthelloGame.convert_to_two_channels_board(self._board)
+                    best_action = self._get_best_action()
+                    greedy_action = tuple(OthelloGame.get_greedy_action(state, self._player_color))
+                    valid_actions = OthelloGame.get_player_valid_actions(state, self._player_color)
+                    highlight_squares = {tuple(a): self.VALID_ACTIONS_COLOR for a in valid_actions}
+                    highlight_squares.update({greedy_action: self.GREEDY_ACTION_COLOR})
+                    highlight_squares.update({best_action: self.BEST_ACTION_COLOR})
+                self._board_widget.set_board(self._board, highlight_squares=highlight_squares)
 
     def _board_callback(self, event, result):
         self._board = result
@@ -133,38 +176,24 @@ class Application(QApplication):
     def _players_callback(self, event, result):
         if result:
             self._player_name, self._opponent_name = result
-            self._player_card_widget.set_player_name(self._player_name)
-            self._opponent_card_widget.set_player_name(self._opponent_name)
-    
+
     def _players_time_callback(self, event, result):
         if result:
-            self._player_card_widget.set_time(result[self._player_name])
-            self._opponent_card_widget.set_time(result[self._opponent_name])
+            self._players_time = result
     
     def _players_points_callback(self, event, result):
         if result:
-            self._player_card_widget.set_points(result[self._player_name])
-            self._opponent_card_widget.set_points(result[self._opponent_name])
-    
+            self._players_points = result
+
     def _current_player_callback(self, event, result):
         if result:
             self._current_player = result
-            if self._current_player == self._player_name:
-                self._update_lotteries()
-                state = OthelloGame.convert_to_two_channels_board(self._board)
-                best_action = self._get_best_action()
-                greedy_action = OthelloGame.get_greedy_action(state, self._player_color)
-                valid_actions = OthelloGame.get_player_valid_actions(state, self.current_player)
-                highlight_squares = {a: self.VALID_ACTIONS_COLOR for a in valid_actions}
-                highlight_squares.update({greedy_action: self.GREEDY_ACTION_COLOR})
-                highlight_squares.update({best_action: self.BEST_ACTION_COLOR})
-                self._board_widget.set_board(self._board, highlight_squares=highlight_squares)
 
     def _player_color_callback(self, event, result):
         if result:
             self._player_color = OthelloPlayer.BLACK if result == 1 else OthelloPlayer.WHITE 
     
-    def _square_hover_callback(self, square):
+    def _square_hover(self, square):
         if not (square and square in self._lotteries):
             return self._floating_dialog_widget.hide()
         
