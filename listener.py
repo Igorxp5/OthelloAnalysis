@@ -61,7 +61,8 @@ class ListenerCallbackRegister:
     
     @register_listener(ListenerCallback.CURRENT_PLAYER)
     def _current_player_logged_listener(driver):
-        xpath = '//*[contains(@class, "current-player-board")]//*[contains(@class, "player-name")]//a'
+        xpath = '//*[@class="emblemwrap" and contains(@style, "display: block;") ' \
+                'and contains(@id, "active")]/following::div[@class="player-name"]'
         try:
             element = driver.find_element_by_xpath(xpath)
             return element and element.text
@@ -69,7 +70,7 @@ class ListenerCallbackRegister:
             return None
     
     @register_listener(ListenerCallback.PLAYERS)
-    def _players_logged_listener(driver):
+    def _players_listener(driver):
         xpath = '//*[contains(@class, "player-name")]//a'
         try:
             elements = driver.find_elements_by_xpath(xpath)
