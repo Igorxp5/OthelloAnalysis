@@ -20,11 +20,11 @@ class ListenerCallback(Enum):
     IN_ROOM = auto()
     IN_GAME = auto()
     PLAYERS = auto()
-    CURRENT_PLAYER = auto()
     PLAYER_COLOR = auto()
-    BOARD = auto()
     PLAYERS_POINTS = auto()
     PLAYERS_TIME = auto()
+    BOARD = auto()
+    CURRENT_PLAYER = auto()
     IS_FINISHED = auto()
 
 
@@ -80,14 +80,14 @@ class ListenerCallbackRegister:
     @register_listener(ListenerCallback.BOARD)
     def _board_listener(driver):
         try:
-            board = np.zeros((8, 8), dtype=int).tolist()
+            board = np.zeros((8, 8), dtype=int)
             discs_root = driver.find_element_by_id('discs')
             discs = {}
             for disc_el in discs_root.find_elements_by_class_name('disc'):
                 player = -1 if 'disccolor_ffffff' in disc_el.get_attribute('class') else 1
                 position = disc_el.get_attribute('id').split('_')[1]
                 position = int(position[1]) - 1, int(position[0]) - 1
-                board[position[0]][position[1]] = player
+                board[position[0], position[1]] = player
             return board
         except NoSuchElementException:
             return None
@@ -118,7 +118,7 @@ class ListenerCallbackRegister:
         try:
             xpath = '//*[contains(@class, "player-name")]//a'
             logged_player_style = driver.find_element_by_xpath(xpath).get_attribute('style')
-            return 1 if logged_player_style == 'color: rgb(0, 0, 0);' else 0
+            return 1 if logged_player_style == 'color: rgb(0, 0, 0);' else -1
         except NoSuchElementException:
             return None
 
@@ -167,8 +167,14 @@ class OthelloListener(Thread):
                     listener = _listeners[type_]
                     self._driver.implicitly_wait(0)
                     result = listener(self._driver)
+                    cache_result = _listeners_cache.get(type_)
+                    cache_result = cache_result and cache_result[1]
+                    if isinstance(result, np.ndarray):
+                        results_are_equals = np.all(result == cache_result)
+                    else:
+                        results_are_equals = result == cache_result 
                     callback_params = tuple([type_] + [result])
-                    if result is not None and _listeners_cache.get(type_) != callback_params:
+                    if result is not None and not results_are_equals:
                         for callback in self._callbacks[type_]:
                             Thread(target=callback, args=callback_params, daemon=True).start()
                     _listeners_cache[type_] = callback_params

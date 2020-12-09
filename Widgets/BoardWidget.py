@@ -13,7 +13,7 @@ class BoardWidget(QtWidgets.QWidget):
         super(BoardWidget, self).__init__(*args, **kwargs)
         self._layout = QtWidgets.QVBoxLayout()
         
-        self._board = np.zeros((board_size, board_size), dtype=int).tolist()
+        self._board = np.zeros((board_size, board_size), dtype=int)
         self._size = size
         self._board_size = board_size
         board_image = self.get_board_image(self._board, self._size)
@@ -62,8 +62,7 @@ class BoardWidget(QtWidgets.QWidget):
     def get_board_image(board, size, background_color='#4ac236', square_stroke=2, 
                         piece_stroke=2, stroke_color='#000000', piece_white_color='#ffffff', 
                         piece_black_color='#000000', highlight_squares=None):
-        rows = len(board)
-        cols = len(board[0])
+        rows, cols = board.shape
         image = Image.new(mode='RGBA', size=(size, size))
         draw = ImageDraw.Draw(image)
 
@@ -86,12 +85,12 @@ class BoardWidget(QtWidgets.QWidget):
                                width=square_stroke, outline=stroke_color)
                 
                 # Draw piece
-                if board[col][row] != 0:
+                if board[col, row] != 0:
                     x1 = x1 + piece_padding
                     y1 = y1 + piece_padding
                     x2 = x2 - piece_padding
                     y2 = y2 - piece_padding
-                    color = piece_black_color if board[col][row] == 1 else piece_white_color
+                    color = piece_black_color if board[col, row] == 1 else piece_white_color
                     draw.ellipse((x1, y1, x2, y2), fill=color, 
                                 width=piece_stroke, outline=stroke_color)
         
@@ -104,7 +103,7 @@ class BoardWidget(QtWidgets.QWidget):
         return image
 
 if __name__ == '__main__':
-    board = np.zeros((8, 8), dtype=int).tolist()
+    board = np.zeros((8, 8), dtype=int)
     board[3][3] = -1
     board[3][4] = 1
     board[4][3] = 1
