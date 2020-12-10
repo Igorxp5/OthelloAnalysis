@@ -45,17 +45,30 @@ class Application(QApplication):
         self._board = None
         self._depth_level = 0
 
-        self._window = QWidget()
-        self._window.setWindowTitle(window_title)
-        self._window.setFixedWidth(self.WINDOW_SIZE[0])
-        self._window.setFixedHeight(self.WINDOW_SIZE[1])
+        self._waiting_window = QWidget()
+        self._waiting_window.setWindowTitle(window_title)
+        self._waiting_window.setFixedWidth(self.WINDOW_SIZE[0])
+        self._waiting_window.setFixedHeight(self.WINDOW_SIZE[1])
+
+        waiting_layout = QGridLayout(self._waiting_window)
+        waiting_label = QLabel('Entre em sua conta do Board Game Arena\n'
+                               'pelo navegador aberto por esse programa e \n'
+                               'inicie uma partida.\n\nEsperando por uma partida...')
+        waiting_label.setAlignment(Qt.AlignCenter)
+        waiting_layout.addWidget(waiting_label, 0, 0, alignment=Qt.AlignCenter)
+
+
+        self._main_window = QWidget()
+        self._main_window.setWindowTitle(window_title)
+        self._main_window.setFixedWidth(self.WINDOW_SIZE[0])
+        self._main_window.setFixedHeight(self.WINDOW_SIZE[1])
 
         self._board_widget = BoardWidget(8)
         self._board_widget.register_square_hover_callback(self._square_hover)
         self._floating_dialog_widget = FloatingDialogWidget(parent=self._board_widget)
         self._floating_dialog_widget.hide()
 
-        self._main_layout = QGridLayout(self._window)
+        self._main_layout = QGridLayout(self._main_window)
         self._main_layout.addWidget(self._board_widget, 0, 0, alignment=Qt.AlignTop)
 
         self._parameters_layout = QVBoxLayout()
@@ -105,7 +118,7 @@ class Application(QApplication):
         best_action_legend = LegendWidget(self.BEST_ACTION_COLOR, 'Best action')
         self._footer_layout.addWidget(best_action_legend)
 
-        greddy_action_legend = LegendWidget(self.GREEDY_ACTION_COLOR, 'Greddy action')
+        greddy_action_legend = LegendWidget(self.GREEDY_ACTION_COLOR, 'Greedy action')
         self._footer_layout.addWidget(greddy_action_legend)
 
         valid_actions_legend = LegendWidget(self.VALID_ACTIONS_COLOR, 'Valid action')
@@ -113,22 +126,27 @@ class Application(QApplication):
 
     def run(self):
         self._listener.start()
-        self._window.show()
+        self._waiting_window.show()
         sys.exit(self.exec_())
     
     def _in_game_callback(self, event, result):
-        self._player_name = None
-        self._opponent_name = None
-        self._lotteries = {}
+        if result:
+            self._waiting_window.hide()
+            self._main_window.show()
+        else:
+            self._player_name = None
+            self._opponent_name = None
+            self._lotteries = {}
 
-        self._current_player = None
-        self._player_color = None
-        self._players_time = dict()
-        self._players_points = dict()
-        self._board = None
-        self._depth_level = 0
+            self._current_player = None
+            self._player_color = None
+            self._players_time = dict()
+            self._players_points = dict()
+            self._board = None
+            self._depth_level = 0
 
-        # TODO: Show waiting window
+            self._waiting_window.show()
+            self._main_window.hide()
     
     def _listener_callback(self, event, result):
         if event is ListenerCallback.BOARD:
@@ -143,6 +161,8 @@ class Application(QApplication):
             self._current_player_callback(event, result)
         elif event is ListenerCallback.PLAYER_COLOR:
             self._player_color_callback(event, result)
+        elif event is ListenerCallback.IN_GAME:
+            self._in_game_callback(event, result)
         
         if self._player_name:
             self._player_card_widget.set_player_name(self._player_name)
