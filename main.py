@@ -34,6 +34,8 @@ class Application(QApplication):
         self._listener.register_callback(ListenerCallback.PLAYER_COLOR, self._listener_callback)
         self._listener.register_callback(ListenerCallback.CURRENT_PLAYER, self._listener_callback)
 
+        self._listener.register_callback(ListenerCallback.CLOSE, self._listener_close_callback)
+
         self._player_name = None
         self._opponent_name = None
         self._lotteries = {(3, 3): {-1: 0.5, 3: 0.3, 4: 0.2}}  # example
@@ -213,6 +215,9 @@ class Application(QApplication):
         if result:
             self._player_color = OthelloPlayer.BLACK if result == 1 else OthelloPlayer.WHITE 
     
+    def _listener_close_callback(self, event, result):
+        self.quit()
+
     def _square_hover(self, square):
         if not (square and square in self._lotteries):
             return self._floating_dialog_widget.hide()
