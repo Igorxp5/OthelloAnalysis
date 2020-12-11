@@ -3,7 +3,8 @@ import numpy as np
 
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, \
-    UnexpectedAlertPresentException, StaleElementReferenceException
+    UnexpectedAlertPresentException, StaleElementReferenceException, \
+    NoSuchWindowException
 
 from enum import Enum, auto
 from threading import Thread, Event
@@ -26,6 +27,7 @@ class ListenerCallback(Enum):
     BOARD = auto()
     CURRENT_PLAYER = auto()
     IS_FINISHED = auto()
+    CLOSE = auto()
 
 
 class ListenerCallbackRegister:
@@ -164,10 +166,17 @@ class OthelloListener(Thread):
 
         while not self._stop_event.is_set():
             for type_ in ListenerCallback:
-                if type_ in self._callbacks:
+                if type_ in self._callbacks and type_ in _listeners:
                     listener = _listeners[type_]
                     self._driver.implicitly_wait(0)
-                    result = listener(self._driver)
+                    try:
+                        result = listener(self._driver)
+                    except NoSuchWindowException:
+                        self._stop_event.set()
+                        break
+                    except WebDriverException:
+                        self._stop_event.set()
+                        break
                     cache_result = _listeners_cache.get(type_)
                     cache_result = cache_result and cache_result[1]
                     if isinstance(result, np.ndarray):
@@ -179,6 +188,10 @@ class OthelloListener(Thread):
                         for callback in self._callbacks[type_]:
                             Thread(target=callback, args=callback_params, daemon=True).start()
                     _listeners_cache[type_] = callback_params
+
+        if ListenerCallback.CLOSE in self._callbacks:
+            for callback in self._callbacks[ListenerCallback.CLOSE]:
+                Thread(target=callback, args=(ListenerCallback.CLOSE, None), daemon=True).start()
 
 
 def callback(event, result):
