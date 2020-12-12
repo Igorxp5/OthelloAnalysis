@@ -3,7 +3,7 @@ import numpy as np
 from Othello import OthelloGame, OthelloPlayer, BoardView
 
 
-class MoveAnalysis():
+class MoveAnalysis:
     def __init__(self, state, move, current_player, count_future_moves):
         self.state = state
         self.move = move
