@@ -232,7 +232,7 @@ class Application(QApplication):
         lines = []
         for pieces, probability in ordered_lottery.items():
             pieces = str(pieces).rjust(2).ljust(5)
-            probability = (str(probability * 100) + '%').rjust(8)
+            probability = ('{:.2f}%'.format(probability * 100)).rjust(8)
             lines.append(f'{pieces}-{probability}')
         self._floating_dialog_widget.set_text('\n'.join(lines))
         
@@ -287,7 +287,7 @@ class Application(QApplication):
         progress_fraction = 100 / len(possible_actions)
         
         process.start()
-        self._statusbar.showMessage('Calculating possible scenarios...')
+        self._statusbar.showMessage('Calculating best action...')
         while process.is_alive():
             try:
                 result = result_queue.get(timeout=3)
@@ -300,7 +300,7 @@ class Application(QApplication):
             for a in lotteries:
                 lotteries[a] = {p: lotteries[a][p] / sums[a] for p in lotteries[a]}
             self._lotteries = lotteries
-            self._statusbar.showMessage('')
+        self._statusbar.showMessage('')
         
         return process.exitcode == 0
 

@@ -4,7 +4,7 @@ import numpy as np
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, \
     UnexpectedAlertPresentException, StaleElementReferenceException, \
-    NoSuchWindowException
+    NoSuchWindowException, WebDriverException
 
 from enum import Enum, auto
 from threading import Thread, Event
