@@ -1,5 +1,7 @@
 import sys
+import queue
 import collections
+import multiprocessing
 
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import *
@@ -11,6 +13,7 @@ from Widgets import BoardWidget, PlayerCardWidget, LegendWidget, \
 from Othello import OthelloGame, OthelloPlayer
 
 from listener import OthelloListener, ListenerCallback
+from move_analysis import MoveAnalysis
 
 
 class Application(QApplication):
@@ -18,7 +21,7 @@ class Application(QApplication):
     VALID_ACTIONS_COLOR = '#6edb5c'
     GREEDY_ACTION_COLOR = '#dbd35c'
 
-    WINDOW_SIZE = 800, 480
+    WINDOW_SIZE = 800, 490
 
     def __init__(self, window_title):
         super().__init__(sys.argv)
@@ -38,14 +41,14 @@ class Application(QApplication):
 
         self._player_name = None
         self._opponent_name = None
-        self._lotteries = {(3, 3): {-1: 0.5, 3: 0.3, 4: 0.2}}  # example
+        self._lotteries = {}
 
         self._current_player = None
         self._player_color = None
         self._players_time = dict()
         self._players_points = dict()
         self._board = None
-        self._depth_level = 0
+        self._depth_level = 2
 
         self._waiting_window = QWidget()
         self._waiting_window.setWindowTitle(window_title)
@@ -98,6 +101,7 @@ class Application(QApplication):
         self._depth_level_slider.setRange(0, 60)
         self._depth_level_slider.setTickInterval(1)
         self._depth_level_slider.valueChanged.connect(self._depth_level_slider_changed)
+        self._depth_level_slider.setValue(self._depth_level)
         self._parameters_layout.addWidget(depth_level_title)
         self._parameters_layout.addWidget(self._depth_level_slider)
         self._parameters_layout.addWidget(self._depth_level_slider_label, alignment=Qt.AlignCenter)
@@ -107,14 +111,14 @@ class Application(QApplication):
         self._parameters_layout.addWidget(value_function_title)
 
         group_box = QGroupBox()
-        group_box.setFixedHeight(220)
+        group_box.setFixedHeight(190)
         self._parameters_layout.addWidget(group_box)
 
         # self._parameters_layout.addStretch()
 
         # Legend Footer
         self._footer_layout = QHBoxLayout()
-        self._footer_layout.setContentsMargins(10, 0, 0, 0)
+        self._footer_layout.setContentsMargins(0, 0, 0, 0)
         self._main_layout.addLayout(self._footer_layout, 1, 0)
 
         best_action_legend = LegendWidget(self.BEST_ACTION_COLOR, 'Best action')
@@ -125,6 +129,11 @@ class Application(QApplication):
 
         valid_actions_legend = LegendWidget(self.VALID_ACTIONS_COLOR, 'Valid action')
         self._footer_layout.addWidget(valid_actions_legend)
+
+        self._statusbar = QStatusBar()
+        self._main_layout.addWidget(self._statusbar, 2, 0, 1, 2)
+
+        self._move_analysis_process = None
 
     def run(self):
         self._listener.start()
@@ -145,7 +154,7 @@ class Application(QApplication):
             self._players_time = dict()
             self._players_points = dict()
             self._board = None
-            self._depth_level = 0
+            self._depth_level = 2
 
             self._waiting_window.show()
             self._main_window.hide()
@@ -178,18 +187,8 @@ class Application(QApplication):
                 self._player_card_widget.set_points(self._players_points[self._player_name])
                 self._opponent_card_widget.set_points(self._players_points[self._opponent_name])
             
-            if self._board is not None:
-                highlight_squares = dict()
-                if self._current_player == self._player_name and self._player_color:
-                    self._update_lotteries()
-                    state = OthelloGame.convert_to_two_channels_board(self._board)
-                    best_action = self._get_best_action()
-                    greedy_action = tuple(OthelloGame.get_greedy_action(state, self._player_color))
-                    valid_actions = OthelloGame.get_player_valid_actions(state, self._player_color)
-                    highlight_squares = {tuple(a): self.VALID_ACTIONS_COLOR for a in valid_actions}
-                    highlight_squares.update({greedy_action: self.GREEDY_ACTION_COLOR})
-                    highlight_squares.update({best_action: self.BEST_ACTION_COLOR})
-                self._board_widget.set_board(self._board, highlight_squares=highlight_squares)
+            if event is ListenerCallback.CURRENT_PLAYER:
+                self._render_board()
 
     def _board_callback(self, event, result):
         self._board = result
@@ -239,29 +238,74 @@ class Application(QApplication):
         
         if square[1] < board_size // 2 and square[0] < board_size // 2:
             alignment = FloatingDialogAlignment.TOP_LEFT
-        elif square[1] > board_size // 2 and square[0] < board_size // 2:
+        elif square[1] >= board_size // 2 and square[0] < board_size // 2:
             alignment = FloatingDialogAlignment.TOP_RIGHT
-        elif square[1] > board_size // 2 and square[0] > board_size // 2:
+        elif square[1] >= board_size // 2 and square[0] >= board_size // 2:
             alignment = FloatingDialogAlignment.BOTTOM_RIGHT
-        elif square[1] < board_size // 2 and square[0] > board_size // 2:
+        elif square[1] < board_size // 2 and square[0] >= board_size // 2:
             alignment = FloatingDialogAlignment.BOTTOM_LEFT
 
         self._floating_dialog_widget.set_alignment(alignment)
         self._floating_dialog_widget.move(x, y)
         self._floating_dialog_widget.show()
 
-    def _depth_level_slider_changed(self, value):
-        self._depth_level_slider_label.setText(str(v))
-        self._depth_level = value
+    def _render_board(self):
+        highlight_squares = dict()
+        if self._board is not None and self._current_player == self._player_name and self._player_color:
+            state = OthelloGame.convert_to_two_channels_board(self._board)
+            greedy_action = tuple(OthelloGame.get_greedy_action(state, self._player_color))
+            valid_actions = OthelloGame.get_player_valid_actions(state, self._player_color)
+            highlight_squares = {tuple(a): self.VALID_ACTIONS_COLOR for a in valid_actions}
+            highlight_squares.update({greedy_action: self.GREEDY_ACTION_COLOR})
+            self._board_widget.set_board(self._board, highlight_squares=highlight_squares)
+            
+            success = self._update_lotteries()
+            if success:
+                best_action = self._get_best_action()
+                highlight_squares.update({best_action: self.BEST_ACTION_COLOR})
+                self._board_widget.set_board(self._board, highlight_squares=highlight_squares)
+        elif self._board is not None:
+            self._board_widget.set_board(self._board, highlight_squares=highlight_squares)
 
+    def _depth_level_slider_changed(self, value):
+        self._depth_level_slider_label.setText(str(value))
+        self._depth_level = value
+        self._render_board()
 
     def _update_lotteries(self):
-        # TODO
-        lotteries = {(3, 3): {-1: 0.5, 3: 0.3, 4: 0.2}}  # example
-        self._lotteries = lotteries
+        state = OthelloGame.convert_to_two_channels_board(self._board)
+        possible_actions = list(OthelloGame.get_player_valid_actions(state, self._player_color))
+        result_queue = multiprocessing.Queue()
+        if self._move_analysis_process and self._move_analysis_process.is_alive():
+            self._move_analysis_process.kill()
+            self._move_analysis_process.join()
+        process = multiprocessing.Process(target=self.analyse_action, 
+            args=(state, self._player_color, possible_actions, self._depth_level, result_queue))
+        self._move_analysis_process = process
+
+        lotteries = {}
+        progress_fraction = 100 / len(possible_actions)
+        
+        process.start()
+        self._statusbar.showMessage('Calculating possible scenarios...')
+        while process.is_alive():
+            try:
+                result = result_queue.get(timeout=3)
+            except queue.Empty:
+                continue
+            lotteries.update(result)
+
+        if process.exitcode == 0:
+            sums = {a: sum(lotteries[a].values()) for a in lotteries}
+            for a in lotteries:
+                lotteries[a] = {p: lotteries[a][p] / sums[a] for p in lotteries[a]}
+            self._lotteries = lotteries
+            self._statusbar.showMessage('')
+        
+        return process.exitcode == 0
 
     def _get_best_action(self):
-        return max(self._lotteries, key=lambda a: sum(self._lotteries[a] ))
+        return max(self._lotteries, key=lambda a: self._get_lottery_utility(self._lotteries[a]))
     
     def _get_lottery_utility(self, lottery):
         return sum(self._get_utility_value(value) * probability for value, probability in lottery.items())
@@ -269,6 +313,15 @@ class Application(QApplication):
     def _get_utility_value(self, value):
         # TODO
         return value
+
+    @staticmethod
+    def analyse_action(state, player_color, actions, depth_level, result_queue):
+        for action in actions:
+            action = tuple(action)
+            future_moves = MoveAnalysis(state, action, player_color, depth_level)
+            future_moves.start_analysis()
+            lottery = future_moves.get_points()
+            result_queue.put({action: lottery})
 
 
 if __name__ == '__main__':
