@@ -9,7 +9,7 @@ from PyQt5.QtCore import Qt
 
 
 class BoardWidget(QtWidgets.QWidget):
-    def __init__(self, board_size=8, size=400, *args, **kwargs):
+    def __init__(self, board_size=8, size=500, *args, **kwargs):
         super(BoardWidget, self).__init__(*args, **kwargs)
         self.setContentsMargins(0, 0, 0, 0)
         

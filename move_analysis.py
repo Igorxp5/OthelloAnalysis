@@ -7,7 +7,7 @@ from threading import Thread, Event
 
 class MoveAnalysis(Thread):
     def __init__(self, state, move, current_player, count_future_moves):
-        self.state = state
+        self.state = np.copy(state)
         self.move = move
 
         self.player = current_player
@@ -132,9 +132,12 @@ if __name__ == "__main__":
         [False, False],
         [False, False]]])
 
+    #game = OthelloGame(8)
+    #state = game.board(BoardView.TWO_CHANNELS)
+    
     current_player = OthelloPlayer.BLACK
-    move = (4,2)
-    count = 2
+    move = (3,2)
+    count = 3
 
     future_moves = MoveAnalysis(state, move, current_player, count)
     future_moves.start()

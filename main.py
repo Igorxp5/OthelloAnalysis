@@ -1,5 +1,13 @@
 import sys
+import os
 import collections
+import multiprocessing
+import numpy as np
+import matplotlib
+matplotlib.use('Qt5Agg')
+
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
 
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import *
@@ -15,13 +23,20 @@ from Othello import OthelloGame, OthelloPlayer
 from listener import OthelloListener, ListenerCallback
 from move_analysis import MoveAnalysis
 
+class MplCanvas(FigureCanvas):
+
+    def __init__(self, parent=None, width=5, height=4, dpi=100):
+        fig = Figure(figsize=(width, height), dpi=dpi)        
+        self.axes = fig.add_subplot(111)
+        super(MplCanvas, self).__init__(fig)
+
 
 class Application(QApplication):
     BEST_ACTION_COLOR = '#db5c5c'
     VALID_ACTIONS_COLOR = '#6edb5c'
     GREEDY_ACTION_COLOR = '#dbd35c'
 
-    WINDOW_SIZE = 800, 490
+    WINDOW_SIZE = 850, 600 #490
 
     def __init__(self, window_title):
         super().__init__(sys.argv)
@@ -30,12 +45,13 @@ class Application(QApplication):
         self._listener = OthelloListener()
 
         self._listener.register_callback(ListenerCallback.BOARD, self._listener_callback)
-        self._listener.register_callback(ListenerCallback.IN_GAME, self._listener_callback)
         self._listener.register_callback(ListenerCallback.PLAYERS, self._listener_callback)
         self._listener.register_callback(ListenerCallback.PLAYERS_TIME, self._listener_callback)
         self._listener.register_callback(ListenerCallback.PLAYERS_POINTS, self._listener_callback)
         self._listener.register_callback(ListenerCallback.PLAYER_COLOR, self._listener_callback)
         self._listener.register_callback(ListenerCallback.CURRENT_PLAYER, self._listener_callback)
+        if os.name != 'nt':
+            self._listener.register_callback(ListenerCallback.IN_GAME, self._listener_callback)
 
         self._listener.register_callback(ListenerCallback.CLOSE, self._listener_close_callback)
 
@@ -51,6 +67,7 @@ class Application(QApplication):
         self._players_points = dict()
         self._board = None
         self._depth_level = 2
+        self._exponential_utility_factor = 0
 
         self._waiting_window = QWidget()
         self._waiting_window.setWindowTitle(window_title)
@@ -100,7 +117,7 @@ class Application(QApplication):
         depth_level_title = QLabel('Depth level')
         self._depth_level_slider_label = QLabel('0')
         self._depth_level_slider = QSlider(Qt.Horizontal)
-        self._depth_level_slider.setRange(0, 60)
+        self._depth_level_slider.setRange(0, 10)
         self._depth_level_slider.setTickInterval(1)
         self._depth_level_slider.valueChanged.connect(self._depth_level_slider_changed)
         self._depth_level_slider.setValue(self._depth_level)
@@ -113,8 +130,28 @@ class Application(QApplication):
         self._parameters_layout.addWidget(value_function_title)
 
         group_box = QGroupBox()
-        group_box.setFixedHeight(190)
+        group_box.setFixedHeight(300)
         self._parameters_layout.addWidget(group_box)
+
+        vbox = QVBoxLayout()
+        group_box.setLayout(vbox)
+        self._canvas = MplCanvas(self, width=5, height=6, dpi=100)
+        self._xdata = np.array(range(-63, 63, 1))
+        self._ydata = self._get_utility_value(self._xdata)
+        vbox.addWidget(self._canvas)
+        self._update_plot()
+
+        #slide exponential utility factor
+        factor_level_title = QLabel('Risk Level: ')
+        self._factor_level_slider_label = QLabel('0')
+        self._factor_level_slider = QSlider(Qt.Horizontal)
+        self._factor_level_slider.setRange(-50, 50)
+        self._factor_level_slider.setTickInterval(1)
+        self._factor_level_slider.valueChanged.connect(self._factor_changed)
+        self._factor_level_slider.setValue(self._exponential_utility_factor)
+        vbox.addWidget(factor_level_title)
+        vbox.addWidget(self._factor_level_slider)
+        vbox.addWidget(self._factor_level_slider_label, alignment=Qt.AlignCenter)
 
         # self._parameters_layout.addStretch()
 
@@ -137,7 +174,10 @@ class Application(QApplication):
 
     def run(self):
         self._listener.start()
-        self._waiting_window.show()
+        if os.name == 'nt':
+            self._main_window.show()
+        else:
+            self._waiting_window.show()
         sys.exit(self.exec_())
     
     def _in_game_callback(self, event, result):
@@ -155,6 +195,7 @@ class Application(QApplication):
             self._players_points = dict()
             self._board = None
             self._depth_level = 2
+            self._exponential_utility_factor = 0
 
             self._waiting_window.show()
             self._main_window.hide()
@@ -249,7 +290,7 @@ class Application(QApplication):
         self._floating_dialog_widget.move(x, y)
         self._floating_dialog_widget.show()
 
-    def _render_board(self):
+    def _render_board(self, update_lotteries=True):
         highlight_squares = dict()
         if self._board is not None and self._current_player == self._player_name and self._player_color:
             state = OthelloGame.convert_to_two_channels_board(self._board)
@@ -259,7 +300,7 @@ class Application(QApplication):
             highlight_squares.update({greedy_action: self.GREEDY_ACTION_COLOR})
             self._board_widget.set_board(self._board, highlight_squares=highlight_squares)
             
-            success = self._update_lotteries()
+            success = not update_lotteries or self._update_lotteries()
             if success:
                 best_action = self._get_best_action()
                 highlight_squares.update({best_action: self.BEST_ACTION_COLOR})
@@ -271,6 +312,18 @@ class Application(QApplication):
         self._depth_level_slider_label.setText(str(value))
         self._depth_level = value
         Thread(target=self._render_board).start()
+    
+    def _factor_changed(self, value):
+        self._factor_level_slider_label.setText(str(value/10 if value != 0 else 0))
+        self._exponential_utility_factor = value
+        self._update_plot()
+        self._render_board(False)
+    
+    def _update_plot(self):
+        self._ydata = self._get_utility_value(self._xdata)
+        self._canvas.axes.cla()
+        self._canvas.axes.plot(self._xdata, self._ydata, 'r')
+        self._canvas.draw()
 
     def _update_lotteries(self):
         if self._move_analysis and self._move_analysis.is_alive():
@@ -279,12 +332,11 @@ class Application(QApplication):
         
         state = OthelloGame.convert_to_two_channels_board(self._board)
         possible_actions = list(OthelloGame.get_player_valid_actions(state, self._player_color))
-        
-        self._statusbar.showMessage('Calculating best action...')
 
         lotteries = {}
         success = False
         for action in possible_actions:
+            self._statusbar.showMessage('Calculating best action...')
             action = tuple(action)
             self._move_analysis = MoveAnalysis(state, action, self._player_color, self._depth_level)
             self._move_analysis.start()
@@ -310,8 +362,11 @@ class Application(QApplication):
         return sum(self._get_utility_value(value) * probability for value, probability in lottery.items())
     
     def _get_utility_value(self, value):
-        # TODO
-        return value
+        value = value/63
+        if self._exponential_utility_factor == 0:
+            return value
+        else:
+            return (1-np.exp(-(-self._exponential_utility_factor/10) * value))/ (-self._exponential_utility_factor/10)
 
 
 if __name__ == '__main__':
