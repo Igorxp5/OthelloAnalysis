@@ -1,11 +1,11 @@
 import sys
-import queue
 import collections
-import multiprocessing
 
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import QTimer, Qt
+
+from threading import Thread
 
 from Widgets import BoardWidget, PlayerCardWidget, LegendWidget, \
     FloatingDialogWidget, FloatingDialogAlignment
@@ -38,6 +38,8 @@ class Application(QApplication):
         self._listener.register_callback(ListenerCallback.CURRENT_PLAYER, self._listener_callback)
 
         self._listener.register_callback(ListenerCallback.CLOSE, self._listener_close_callback)
+
+        self._move_analysis = None
 
         self._player_name = None
         self._opponent_name = None
@@ -133,8 +135,6 @@ class Application(QApplication):
         self._statusbar = QStatusBar()
         self._main_layout.addWidget(self._statusbar, 2, 0, 1, 2)
 
-        self._move_analysis_process = None
-
     def run(self):
         self._listener.start()
         self._waiting_window.show()
@@ -187,7 +187,7 @@ class Application(QApplication):
                 self._player_card_widget.set_points(self._players_points[self._player_name])
                 self._opponent_card_widget.set_points(self._players_points[self._opponent_name])
             
-            if event is ListenerCallback.CURRENT_PLAYER:
+            if self._move_analysis is None or event is ListenerCallback.CURRENT_PLAYER:
                 self._render_board()
 
     def _board_callback(self, event, result):
@@ -270,39 +270,38 @@ class Application(QApplication):
     def _depth_level_slider_changed(self, value):
         self._depth_level_slider_label.setText(str(value))
         self._depth_level = value
-        self._render_board()
+        Thread(target=self._render_board).start()
 
     def _update_lotteries(self):
+        if self._move_analysis and self._move_analysis.is_alive():
+            self._move_analysis.stop()
+            self._move_analysis.join()
+        
         state = OthelloGame.convert_to_two_channels_board(self._board)
         possible_actions = list(OthelloGame.get_player_valid_actions(state, self._player_color))
-        result_queue = multiprocessing.Queue()
-        if self._move_analysis_process and self._move_analysis_process.is_alive():
-            self._move_analysis_process.kill()
-            self._move_analysis_process.join()
-        process = multiprocessing.Process(target=self.analyse_action, 
-            args=(state, self._player_color, possible_actions, self._depth_level, result_queue))
-        self._move_analysis_process = process
+        
+        self._statusbar.showMessage('Calculating best action...')
 
         lotteries = {}
-        progress_fraction = 100 / len(possible_actions)
-        
-        process.start()
-        self._statusbar.showMessage('Calculating best action...')
-        while process.is_alive():
-            try:
-                result = result_queue.get(timeout=3)
-            except queue.Empty:
-                continue
-            lotteries.update(result)
-
-        if process.exitcode == 0:
+        success = False
+        for action in possible_actions:
+            action = tuple(action)
+            self._move_analysis = MoveAnalysis(state, action, self._player_color, self._depth_level)
+            self._move_analysis.start()
+            lottery = self._move_analysis.get_result()
+            if not lottery:
+                break
+            lotteries.update({action: lottery})
+        else:
             sums = {a: sum(lotteries[a].values()) for a in lotteries}
             for a in lotteries:
                 lotteries[a] = {p: lotteries[a][p] / sums[a] for p in lotteries[a]}
             self._lotteries = lotteries
-        self._statusbar.showMessage('')
+            success = True
         
-        return process.exitcode == 0
+        self._statusbar.showMessage('')
+
+        return success
 
     def _get_best_action(self):
         return max(self._lotteries, key=lambda a: self._get_lottery_utility(self._lotteries[a]))
@@ -313,15 +312,6 @@ class Application(QApplication):
     def _get_utility_value(self, value):
         # TODO
         return value
-
-    @staticmethod
-    def analyse_action(state, player_color, actions, depth_level, result_queue):
-        for action in actions:
-            action = tuple(action)
-            future_moves = MoveAnalysis(state, action, player_color, depth_level)
-            future_moves.start_analysis()
-            lottery = future_moves.get_points()
-            result_queue.put({action: lottery})
 
 
 if __name__ == '__main__':
