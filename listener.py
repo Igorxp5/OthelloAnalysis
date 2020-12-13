@@ -146,7 +146,7 @@ class OthelloListener(Thread):
     def run(self):
         options = webdriver.ChromeOptions()
         options.add_argument('--lang=en')
-        self._driver = webdriver.Chrome(executable_path='./chromedriver', options=options)
+        self._driver = webdriver.Chrome(executable_path='./chromedriver.exe', options=options)
         self._driver.get(OthelloListener.HOME_PAGE)
 
         self._listener()
