@@ -2,8 +2,10 @@ import numpy as np
 
 from Othello import OthelloGame, OthelloPlayer, BoardView
 
+from threading import Thread, Event
 
-class MoveAnalysis:
+
+class MoveAnalysis(Thread):
     def __init__(self, state, move, current_player, count_future_moves):
         self.state = state
         self.move = move
@@ -14,17 +16,25 @@ class MoveAnalysis:
 
         self._has_finished = False
         self._points = {}
+        self._stop_event = Event()
+        self._result = None
 
+        super().__init__(daemon=True)
+    
+    def run(self):
+        if self.start_analysis():
+            self._result = self._points
+            self._stop_event.set()
 
-    @property
-    def points(self):
-        return self._points
+    def stop(self):
+        self._stop_event.set()
 
     def has_finished(self):
         return self._has_finished
 
-    def get_points(self):
-        return self._points
+    def get_result(self):
+        self._stop_event.wait()
+        return self._result
 
     def start_analysis(self):
         OthelloGame.flip_board_squares(self.state, self.player, *self.move)
@@ -40,7 +50,7 @@ class MoveAnalysis:
                 points_now =  OthelloGame.get_board_players_points(self.state)[self.player]
                 # adicionando no dicionario
                 self._points[points_now - self.points_before] = self._points.get(points_now - self.points_before, 0) + 1
-                return self.points
+                return self._points
             else:
                 current_player = current_player.opponent
 
@@ -49,11 +59,14 @@ class MoveAnalysis:
 
     def future_moves(self, state, current_player, count):
         if count == self.count_future_moves or self.has_finished():
-            return 
+            return True
         else:
             count += 1
             possible_moves = OthelloGame.get_player_valid_actions(state, current_player)
             for move in possible_moves:
+                if self._stop_event.is_set():
+                    return False
+
                 board = np.copy(state)
                 OthelloGame.flip_board_squares(board, current_player, *move)
                 # Checar se o adversário tem jogada ou se acabou o jogo
@@ -73,7 +86,7 @@ class MoveAnalysis:
                     self._points[points_now - self.points_before] = self._points.get(points_now - self.points_before, 0) + 1
                     
                 self.future_moves(board, new_player, count)
-
+            return True
 
 
 if __name__ == "__main__":
@@ -124,6 +137,6 @@ if __name__ == "__main__":
     count = 2
 
     future_moves = MoveAnalysis(state, move, current_player, count)
-    future_moves.start_analysis()
-    dicio = future_moves.get_points()
+    future_moves.start()
+    dicio = future_moves.get_result()
     print(f"O dicionário final {dicio}")
