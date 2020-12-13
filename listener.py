@@ -1,3 +1,4 @@
+import os
 import re
 import numpy as np
 
@@ -146,7 +147,11 @@ class OthelloListener(Thread):
     def run(self):
         options = webdriver.ChromeOptions()
         options.add_argument('--lang=en')
-        self._driver = webdriver.Chrome(executable_path='./chromedriver.exe', options=options)
+        if os.name == 'nt':
+            executable_path = './chromedriver.exe'
+        else:
+            executable_path = './chromedriver'
+        self._driver = webdriver.Chrome(executable_path=executable_path, options=options)
         self._driver.get(OthelloListener.HOME_PAGE)
 
         self._listener()

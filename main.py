@@ -1,9 +1,9 @@
-import sys
 import os
-import collections
-import multiprocessing
-import numpy as np
+import sys
 import matplotlib
+import numpy as np
+import collections
+
 matplotlib.use('Qt5Agg')
 
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -294,10 +294,10 @@ class Application(QApplication):
         highlight_squares = dict()
         if self._board is not None and self._current_player == self._player_name and self._player_color:
             state = OthelloGame.convert_to_two_channels_board(self._board)
-            greedy_action = tuple(OthelloGame.get_greedy_action(state, self._player_color))
+            greedy_actions = tuple(OthelloGame.get_greedy_actions(state, self._player_color))
             valid_actions = OthelloGame.get_player_valid_actions(state, self._player_color)
-            highlight_squares = {tuple(a): self.VALID_ACTIONS_COLOR for a in valid_actions}
-            highlight_squares.update({greedy_action: self.GREEDY_ACTION_COLOR})
+            highlight_squares.update({tuple(a): self.VALID_ACTIONS_COLOR for a in valid_actions})
+            highlight_squares.update({tuple(a): self.GREEDY_ACTION_COLOR for a in greedy_actions})
             self._board_widget.set_board(self._board, highlight_squares=highlight_squares)
             
             success = not update_lotteries or self._update_lotteries()
