@@ -264,18 +264,20 @@ class OthelloGame:
         return next(OthelloGame.get_player_valid_actions(board, player), False) is not False
 
     @staticmethod
-    def get_greedy_action(board, player):
+    def get_greedy_actions(board, player):
         valid_actions = OthelloGame.get_player_valid_actions(board, player)
-        best_action = None
+        best_actions = []
         best_points = None
         for action in valid_actions:
             state = np.copy(board)
             OthelloGame.flip_board_squares(state, player, *action)
-            points = OthelloGame.get_board_players_points(state)[OthelloPlayer.BLACK]
+            points = OthelloGame.get_board_players_points(state)[player]
             if not best_points or points > best_points:
-                best_action = action
+                best_actions = [action]
                 best_points = points
-        return best_action
+            elif points == best_points:
+                best_actions.append(action)
+        return best_actions
 
     @staticmethod
     def convert_to_one_channel_board(board):
