@@ -29,4 +29,4 @@ Now login into Board Game Arena through the browser opened by the program and jo
 
 ## Screenshot
 
-![Screenshot](https://user-images.githubusercontent.com/8163093/102032509-bb7fc100-3d97-11eb-8001-7c03d9e60681.png)
+![Screenshot](https://user-images.githubusercontent.com/8163093/102143189-56cd7080-3e42-11eb-98e0-b785195ad088.png)
