@@ -24,9 +24,10 @@ class ListenerCallback(Enum):
     PLAYERS = auto()
     PLAYER_COLOR = auto()
     PLAYERS_POINTS = auto()
-    PLAYERS_TIME = auto()
     BOARD = auto()
+    PLAYERS_TIME = auto()
     CURRENT_PLAYER = auto()
+    GAME_PROGRESS = auto()
     IS_FINISHED = auto()
     CLOSE = auto()
 
@@ -134,6 +135,14 @@ class ListenerCallbackRegister:
         except NoSuchElementException:
             return None
 
+    @register_listener(ListenerCallback.GAME_PROGRESS)
+    def _game_progress_listener(driver):
+        try:
+            element = driver.find_element_by_id('pr_gameprogression')
+            return element and element.text
+        except NoSuchElementException:
+            return None
+
 
 class OthelloListener(Thread):
     HOME_PAGE = 'https://en.boardgamearena.com/account'
@@ -158,7 +167,7 @@ class OthelloListener(Thread):
 
         self._driver.quit()
 
-    def register_callback(self, type_: 'OthelloListenerCallback', callback: Callable):
+    def register_callback(self, type_: 'ListenerCallback', callback: Callable):
         if type_ not in self._callbacks:
             self._callbacks[type_] = []
         self._callbacks[type_].append(callback)
@@ -190,13 +199,16 @@ class OthelloListener(Thread):
                         results_are_equals = result == cache_result 
                     callback_params = tuple([type_] + [result])
                     if result is not None and not results_are_equals:
-                        for callback in self._callbacks[type_]:
-                            Thread(target=callback, args=callback_params, daemon=True).start()
+                        self._run_callbacks(type_, callback_params)
                     _listeners_cache[type_] = callback_params
 
         if ListenerCallback.CLOSE in self._callbacks:
-            for callback in self._callbacks[ListenerCallback.CLOSE]:
-                Thread(target=callback, args=(ListenerCallback.CLOSE, None), daemon=True).start()
+            self._run_callbacks(ListenerCallback.CLOSE, (ListenerCallback.CLOSE, None))
+
+    def _run_callbacks(self, type_: 'ListenerCallback', callback_params):
+        if type_ in self._callbacks:
+            for callback in self._callbacks[type_]:
+                Thread(target=callback, args=callback_params, daemon=True).start()
 
 
 def callback(event, result):

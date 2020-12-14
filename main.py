@@ -50,6 +50,7 @@ class Application(QApplication):
         self._listener.register_callback(ListenerCallback.PLAYERS_POINTS, self._listener_callback)
         self._listener.register_callback(ListenerCallback.PLAYER_COLOR, self._listener_callback)
         self._listener.register_callback(ListenerCallback.CURRENT_PLAYER, self._listener_callback)
+        self._listener.register_callback(ListenerCallback.GAME_PROGRESS, self._listener_callback)
         if os.name != 'nt':
             self._listener.register_callback(ListenerCallback.IN_GAME, self._listener_callback)
 
@@ -65,7 +66,9 @@ class Application(QApplication):
         self._player_color = None
         self._players_time = dict()
         self._players_points = dict()
+        self._rendered_rounds = set()
         self._board = None
+        self._game_progress = None
         self._depth_level = 2
         self._exponential_utility_factor = 0
 
@@ -195,6 +198,8 @@ class Application(QApplication):
             self._players_points = dict()
             self._board = None
             self._depth_level = 2
+            self._game_progress = None
+            self._rendered_rounds = set()
             self._exponential_utility_factor = 0
 
             self._waiting_window.show()
@@ -215,6 +220,9 @@ class Application(QApplication):
             self._player_color_callback(event, result)
         elif event is ListenerCallback.IN_GAME:
             self._in_game_callback(event, result)
+        elif event is ListenerCallback.GAME_PROGRESS:
+            self._game_progress_callback(event, result)
+
         
         if self._player_name:
             self._player_card_widget.set_player_name(self._player_name)
@@ -227,13 +235,18 @@ class Application(QApplication):
             if self._players_points:
                 self._player_card_widget.set_points(self._players_points[self._player_name])
                 self._opponent_card_widget.set_points(self._players_points[self._opponent_name])
-            
-            if self._move_analysis is None or event is ListenerCallback.CURRENT_PLAYER:
+
+            if self._game_progress and self._game_progress not in self._rendered_rounds:
+                self._lotteries = {}  # Clear lotteries when the round changes
                 self._render_board()
 
     def _board_callback(self, event, result):
         self._board = result
         self._board_widget.set_board(result)
+    
+    def _game_progress_callback(self, event, result):
+        if result:
+            self._game_progress = result
     
     def _players_callback(self, event, result):
         if result:
@@ -291,8 +304,11 @@ class Application(QApplication):
         self._floating_dialog_widget.show()
 
     def _render_board(self, update_lotteries=True):
+        if self._move_analysis and self._move_analysis.is_alive():
+            self._move_analysis.stop()
         highlight_squares = dict()
-        if self._board is not None and self._current_player == self._player_name and self._player_color:
+        if self._board is not None and self._current_player == self._player_name and self._player_color and self._game_progress:
+            self._rendered_rounds.add(self._game_progress)
             state = OthelloGame.convert_to_two_channels_board(self._board)
             greedy_actions = tuple(OthelloGame.get_greedy_actions(state, self._player_color))
             valid_actions = OthelloGame.get_player_valid_actions(state, self._player_color)
@@ -328,7 +344,6 @@ class Application(QApplication):
     def _update_lotteries(self):
         if self._move_analysis and self._move_analysis.is_alive():
             self._move_analysis.stop()
-            self._move_analysis.join()
         
         state = OthelloGame.convert_to_two_channels_board(self._board)
         possible_actions = list(OthelloGame.get_player_valid_actions(state, self._player_color))
