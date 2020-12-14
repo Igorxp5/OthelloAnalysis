@@ -238,6 +238,8 @@ class Application(QApplication):
 
             if self._game_progress and self._game_progress not in self._rendered_rounds:
                 self._lotteries = {}  # Clear lotteries when the round changes
+                if self._move_analysis and self._move_analysis.is_alive():
+                    self._move_analysis.stop()
                 self._render_board()
 
     def _board_callback(self, event, result):
@@ -304,8 +306,6 @@ class Application(QApplication):
         self._floating_dialog_widget.show()
 
     def _render_board(self, update_lotteries=True):
-        if self._move_analysis and self._move_analysis.is_alive():
-            self._move_analysis.stop()
         highlight_squares = dict()
         if self._board is not None and self._current_player == self._player_name and self._player_color and self._game_progress:
             self._rendered_rounds.add(self._game_progress)
