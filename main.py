@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import matplotlib
 import numpy as np
 import collections
@@ -241,6 +242,7 @@ class Application(QApplication):
                 if self._move_analysis and self._move_analysis.is_alive():
                     self._move_analysis.stop()
                     self._move_analysis.join()
+                time.sleep(0.2)
                 self._render_board()
 
     def _board_callback(self, event, result):
@@ -288,7 +290,7 @@ class Application(QApplication):
         
         lines = []
         for pieces, probability in ordered_lottery.items():
-            pieces = str(pieces).rjust(2).ljust(5)
+            pieces = f'{pieces:+}'.ljust(5)
             probability = ('{:.2f}%'.format(probability * 100)).rjust(8)
             lines.append(f'{pieces}-{probability}')
         self._floating_dialog_widget.set_text('\n'.join(lines))
