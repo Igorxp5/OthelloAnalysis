@@ -240,6 +240,7 @@ class Application(QApplication):
                 self._lotteries = {}  # Clear lotteries when the round changes
                 if self._move_analysis and self._move_analysis.is_alive():
                     self._move_analysis.stop()
+                    self._move_analysis.join()
                 self._render_board()
 
     def _board_callback(self, event, result):
@@ -344,6 +345,7 @@ class Application(QApplication):
     def _update_lotteries(self):
         if self._move_analysis and self._move_analysis.is_alive():
             self._move_analysis.stop()
+            self._move_analysis.join()
         
         state = OthelloGame.convert_to_two_channels_board(self._board)
         possible_actions = list(OthelloGame.get_player_valid_actions(state, self._player_color))
